@@ -96,6 +96,7 @@ dmypy.json
 
 # Ignore downloaded repos
 downloaded_repos/
+runs/ 
 
 # System files
 .DS_Store

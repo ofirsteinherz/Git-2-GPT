@@ -2,6 +2,7 @@ import os
 import requests
 import zipfile
 import io
+from datetime import datetime
 from html import escape
 from tokencost import calculate_prompt_cost, count_string_tokens
 from decimal import Decimal
@@ -16,23 +17,25 @@ def clean_github_url(repo_url):
         repo_url = repo_url.split('?')[0]
     return repo_url
 
-def download_and_extract_github_repo(repo_url, download_dir):
+def download_and_extract_github_repo(repo_url, run_dir):
     repo_url = clean_github_url(repo_url)
     repo_name = repo_url.rstrip('/').split('/')[-1]
     zip_url = f"{repo_url}/archive/refs/heads/master.zip"
     print(f"Downloading {zip_url}...")
 
-    # Create download directory if it doesn't exist
-    if not os.path.exists(download_dir):
-        os.makedirs(download_dir)
-
     # Download the repo as a zip file
     response = requests.get(zip_url)
+    print(f"HTTP response status: {response.status_code}")
     if response.status_code == 200:
         print(f"Extracting {repo_name}.zip...")
         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
-            z.extractall(download_dir)
-        extracted_folder = os.path.join(download_dir, f"{repo_name}-master")
+            z.extractall(run_dir)
+        # Since the extracted folder name is different, we handle it here
+        extracted_folder = os.path.join(run_dir, f"{repo_name}-main")
+        if os.path.exists(extracted_folder):
+            print(f"Extraction successful. Folder exists: {extracted_folder}")
+        else:
+            print(f"Extraction failed. Folder does not exist: {extracted_folder}")
         return extracted_folder
     else:
         raise Exception(f"Failed to download {repo_name}.zip from {zip_url}")
@@ -57,13 +60,23 @@ def process_files(folder_path, output_txt, html_file):
     total_tokens = 0
     total_cost = Decimal(0)
 
+    # Check if the folder path exists
+    if not os.path.exists(folder_path):
+        print(f"Folder does not exist: {folder_path}")
+        return
+
+    print(f"Processing files in folder: {folder_path}")
+
     # Write to the text file
     with open(output_txt, 'w', encoding='utf-8') as txt_file:
         # Collect file information and determine max folder depth
         for root, dirs, files in os.walk(folder_path):
             for name in files:
                 file_path = os.path.join(root, name)
+                print(f"Processing file: {file_path}")
+
                 if is_excluded(name):
+                    print(f"Excluded file: {file_path}")
                     continue
 
                 relative_path = os.path.relpath(file_path, folder_path)
@@ -72,6 +85,7 @@ def process_files(folder_path, output_txt, html_file):
                 max_depth = max(max_depth, depth)
 
                 if is_binary(file_path):
+                    print(f"File is binary: {file_path}")
                     tokens = 0
                     cost = Decimal(0)
                     content = "<binary file content not included>"
@@ -81,6 +95,7 @@ def process_files(folder_path, output_txt, html_file):
                             content = f.read()
                         tokens = count_string_tokens(prompt=content, model=MODEL)
                         cost = calculate_prompt_cost(content, model=MODEL)
+                        print(f"Tokens: {tokens}, Cost: {cost} for file: {file_path}")
                     except Exception as e:
                         print(f"Error processing file {file_path}: {e}")
                         tokens = 0
@@ -97,10 +112,16 @@ def process_files(folder_path, output_txt, html_file):
                 txt_file.write(content + "\n")
                 txt_file.write("\n" + "-"*50 + "\n\n")
 
+    print(f"Total tokens processed: {total_tokens}")
+    print(f"Total cost calculated: {total_cost}")
+    print(f"Writing text file to: {output_txt}")
+    print(f"Writing HTML file to: {html_file}")
+
     # Create the HTML report
     create_html_report(html_file, file_list, max_depth, total_tokens, total_cost)
 
 def create_html_report(html_file, file_list, max_depth, total_tokens, total_cost):
+    print(f"Creating HTML report: {html_file}")
     with open(html_file, 'w') as html:
         html.write("<html><head><style>")
         html.write("body {font-family: Arial, sans-serif;}")
@@ -143,6 +164,7 @@ def create_html_report(html_file, file_list, max_depth, total_tokens, total_cost
             html.write("</tr>")
         
         html.write("</table></section></body></html>")
+    print(f"HTML report created successfully.")
 
 def is_excluded(file_name):
     exclude_patterns = ["package-lock.json", ".DS_Store", "node_modules", "__pycache__", "*.log"]
@@ -156,12 +178,22 @@ def is_excluded(file_name):
 
 # Example usage
 repo_url = input("Enter the GitHub repo URL: ")
-download_dir = "downloaded_repos"
-extracted_folder = download_and_extract_github_repo(repo_url, download_dir)
 
-# Set output files next to the extracted folder
-output_txt = os.path.join(download_dir, f"{os.path.basename(extracted_folder)}_file_paths_and_contents.txt")
-html_file = os.path.join(download_dir, f"{os.path.basename(extracted_folder)}_file_report.html")
+# Set up the run directory structure
+run_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+repo_name = repo_url.rstrip('/').split('/')[-1]
+run_dir = os.path.join("runs", f"{run_time}_{repo_name}")
+os.makedirs(run_dir, exist_ok=True)
 
-process_files(extracted_folder, output_txt, html_file)
-print(f"Processing complete. Files saved in: {os.path.dirname(output_txt)}")
+# Download and extract the repository
+extracted_folder = download_and_extract_github_repo(repo_url, run_dir)
+
+if extracted_folder:
+    # Set output files in the run directory
+    output_txt = os.path.join(run_dir, f"{repo_name}_file_paths_and_contents.txt")
+    html_file = os.path.join(run_dir, f"{repo_name}_file_report.html")
+
+    process_files(extracted_folder, output_txt, html_file)
+    print(f"Processing complete. Files saved in: {run_dir}")
+else:
+    print("Download or extraction failed. No files processed.")
