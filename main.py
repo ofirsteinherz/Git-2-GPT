@@ -2,6 +2,7 @@ import os
 import requests
 import zipfile
 import io
+import json
 from datetime import datetime
 from html import escape
 from tokencost import calculate_prompt_cost, count_string_tokens
@@ -9,6 +10,20 @@ from decimal import Decimal
 
 # Define the model to be used for cost and token calculation
 MODEL = "gpt-4o"
+
+def load_exclude_patterns(json_file="exclude_patterns.json"):
+    with open(json_file, "r") as file:
+        data = json.load(file)
+    return data.get("exclude_patterns", [])
+
+def is_excluded(file_name, exclude_patterns):
+    for pattern in exclude_patterns:
+        if pattern.startswith("*"):
+            if file_name.endswith(pattern[1:]):
+                return True
+        elif pattern in file_name:
+            return True
+    return False
 
 def clean_github_url(repo_url):
     if repo_url.endswith('/'):
@@ -30,7 +45,6 @@ def download_and_extract_github_repo(repo_url, run_dir):
         print(f"Extracting {repo_name}.zip...")
         with zipfile.ZipFile(io.BytesIO(response.content)) as z:
             z.extractall(run_dir)
-        # Since the extracted folder name is different, we handle it here
         extracted_folder = os.path.join(run_dir, f"{repo_name}-main")
         if os.path.exists(extracted_folder):
             print(f"Extraction successful. Folder exists: {extracted_folder}")
@@ -54,7 +68,7 @@ def is_binary(file_path):
         print(f"Error reading file {file_path}: {e}")
         return True
 
-def process_files(folder_path, output_txt, html_file):
+def process_files(folder_path, output_txt, html_file, exclude_patterns):
     file_list = []
     max_depth = 0
     total_tokens = 0
@@ -75,7 +89,7 @@ def process_files(folder_path, output_txt, html_file):
                 file_path = os.path.join(root, name)
                 print(f"Processing file: {file_path}")
 
-                if is_excluded(name):
+                if is_excluded(name, exclude_patterns):
                     print(f"Excluded file: {file_path}")
                     continue
 
@@ -166,18 +180,11 @@ def create_html_report(html_file, file_list, max_depth, total_tokens, total_cost
         html.write("</table></section></body></html>")
     print(f"HTML report created successfully.")
 
-def is_excluded(file_name):
-    exclude_patterns = ["package-lock.json", ".DS_Store", "node_modules", "__pycache__", "*.log"]
-    for pattern in exclude_patterns:
-        if pattern.startswith("*"):
-            if file_name.endswith(pattern[1:]):
-                return True
-        elif pattern in file_name:
-            return True
-    return False
-
 # Example usage
 repo_url = input("Enter the GitHub repo URL: ")
+
+# Load exclusion patterns from JSON
+exclude_patterns = load_exclude_patterns()
 
 # Set up the run directory structure
 run_time = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -193,7 +200,7 @@ if extracted_folder:
     output_txt = os.path.join(run_dir, f"{repo_name}_file_paths_and_contents.txt")
     html_file = os.path.join(run_dir, f"{repo_name}_file_report.html")
 
-    process_files(extracted_folder, output_txt, html_file)
+    process_files(extracted_folder, output_txt, html_file, exclude_patterns)
     print(f"Processing complete. Files saved in: {run_dir}")
 else:
     print("Download or extraction failed. No files processed.")
