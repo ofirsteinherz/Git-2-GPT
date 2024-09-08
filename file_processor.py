@@ -8,7 +8,6 @@ MODEL = "gpt-4o"
 
 def process_files(folder_path, output_txt, html_file, exclude_patterns):
     file_list = []
-    max_depth = 0
     total_tokens = 0
     total_cost = Decimal(0)
 
@@ -30,8 +29,6 @@ def process_files(folder_path, output_txt, html_file, exclude_patterns):
 
                 relative_path = os.path.relpath(file_path, folder_path)
                 parts = relative_path.split(os.sep)
-                depth = len(parts) - 1
-                max_depth = max(max_depth, depth)
 
                 if is_binary(file_path):
                     tokens = 0
@@ -64,4 +61,4 @@ def process_files(folder_path, output_txt, html_file, exclude_patterns):
     print(f"Total tokens processed: {total_tokens}")
     print(f"Total cost calculated: {total_cost}")
 
-    create_html_report(html_file, file_list, max_depth, total_tokens, total_cost)
+    create_html_report(html_file, file_list, total_tokens, total_cost)
