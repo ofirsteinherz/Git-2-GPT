@@ -67,7 +67,7 @@ def is_binary(file_path):
     except Exception as e:
         print(f"Error reading file {file_path}: {e}")
         return True
-
+    
 def process_files(folder_path, output_txt, html_file, exclude_patterns):
     file_list = []
     max_depth = 0
@@ -110,6 +110,11 @@ def process_files(folder_path, output_txt, html_file, exclude_patterns):
                         tokens = count_string_tokens(prompt=content, model=MODEL)
                         cost = calculate_prompt_cost(content, model=MODEL)
                         print(f"Tokens: {tokens}, Cost: {cost} for file: {file_path}")
+
+                        # Skip the file if it exceeds 100,000 tokens
+                        if tokens > 100000:
+                            print(f"Skipping file {file_path} due to token count: {tokens}")
+                            continue
                     except Exception as e:
                         print(f"Error processing file {file_path}: {e}")
                         tokens = 0
