@@ -3,6 +3,7 @@ from decimal import Decimal
 from tokencost import calculate_prompt_cost, count_string_tokens
 from utils import is_binary, is_excluded
 from report_generator import create_html_report
+import pandas as pd
 
 MODEL = "gpt-4o"
 
@@ -34,6 +35,21 @@ def process_files(folder_path, output_txt, html_file, exclude_patterns):
                     tokens = 0
                     cost = Decimal(0)
                     content = "<binary file content not included>"
+                elif file_path.endswith('.csv'):
+                    try:
+                        # Load only the first 100 rows of the CSV
+                        df = pd.read_csv(file_path, nrows=100)
+                        content = df.to_csv(index=False)  # Convert back to CSV string format for token counting
+                        tokens = count_string_tokens(prompt=content, model=MODEL)
+                        cost = calculate_prompt_cost(content, model=MODEL)
+                        if tokens > 100000:
+                            print(f"Skipping file {file_path} due to token count: {tokens}")
+                            continue
+                    except Exception as e:
+                        print(f"Error processing CSV file {file_path}: {e}")
+                        tokens = 0
+                        cost = Decimal(0)
+                        content = "<error reading CSV content>"
                 else:
                     try:
                         with open(file_path, 'r', encoding='utf-8') as f:
