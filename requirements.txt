@@ -1,2 +1,10 @@
 requests
+pandas
 tokencost
+jinja2
+numpy<2
+lxml<5.0.0
+huggingface-hub<0.17.0
+pycairo
+httpx<0.24
+grpcio<1.48.1

@@ -1,0 +1,8 @@
+services:
+  app:  # This is the service name
+    build: .
+    container_name: my_python_app
+    volumes:
+      - .:/app
+    stdin_open: true
+    tty: true
