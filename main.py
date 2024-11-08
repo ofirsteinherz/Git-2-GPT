@@ -1,3 +1,4 @@
+import sys
 import os
 import pyperclip
 
@@ -7,11 +8,12 @@ from file_processor import process_files
 from utils import load_exclude_patterns
 
 if __name__ == "__main__":
-    # Fetch repo_url from environment variable
-    repo_url = os.getenv("REPO_URL")
-
-    if not repo_url:
-        raise ValueError("REPO_URL environment variable is not set")
+        
+    # Fetch repo_url from command-line argument
+    if len(sys.argv) > 1:
+        repo_url = sys.argv[1]
+    else:
+        raise ValueError("Repository URL not provided. Usage: python script_name.py <repo_url>")
 
     # Load exclusion patterns from JSON
     exclude_patterns = load_exclude_patterns()
@@ -37,6 +39,10 @@ if __name__ == "__main__":
 
         # Print and copy to clipboard
         print(completion_message)
-        pyperclip.copy(completion_message)  # Copy to clipboard
+        
+        try:
+            pyperclip.copy(completion_message)  # Copy to clipboard
+        except pyperclip.PyperclipException:
+            print("Could not copy to clipboard. Please manually copy the path if needed.")
     else:
         print("Download or extraction failed. No files processed.")
